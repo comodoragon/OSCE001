@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日輪学 Simulator</title>
+<style>
+:root{
+  color-scheme:light;
+  --paper:#fff; --line:#d8dde1; --line2:#eceff1;
+  --ink:#1c1f24; --muted:#6b7278;
+  --accent:#1f5fa8; --sun:#c8862a; --warn:#9c4b1e; --soft:#f4f6f8;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);}
+button,input,select{font:inherit;}
+button{min-height:33px;padding:0 12px;border:1px solid var(--line);border-radius:5px;background:#fff;cursor:pointer;}
+button:hover:not(:disabled){background:var(--soft);border-color:#b9c1c7;}
+button:disabled{opacity:.38;cursor:not-allowed;}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+button.primary:hover:not(:disabled){background:#18497f;}
+button.on{background:#e7f0fa;border-color:var(--accent);color:var(--accent);}
+select{padding:6px 9px;border:1px solid var(--line);border-radius:5px;background:#fff;}
+.app{min-height:100vh;display:grid;grid-template-rows:auto auto 1fr;}
+.topbar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:8px 16px;
+  border-bottom:1px solid var(--line2);background:#fff;position:sticky;top:0;z-index:40;}
+.cal{font-variant-numeric:tabular-nums;font-size:20px;font-weight:650;}
+.where{font-size:12.5px;color:var(--muted);}
+.where b{color:var(--ink);font-weight:600;}
+.rates{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap;}
+.rates button{min-height:29px;padding:0 9px;font-size:12.5px;}
+.tlwrap{padding:2px 16px 6px;border-bottom:1px solid var(--line);background:#fff;}
+#cvTL{width:100%;height:56px;display:block;}
+.workspace{display:grid;grid-template-columns:176px minmax(0,1fr);}
+.side{border-right:1px solid var(--line);background:var(--soft);padding:11px;display:grid;gap:5px;align-content:start;}
+.nav{display:grid;grid-template-columns:25px 1fr;gap:8px;align-items:center;text-align:left;
+  background:transparent;border-color:transparent;min-height:41px;padding:5px 7px;}
+.nav .ico{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:#e2e8ee;color:#33526f;font-weight:700;font-size:10.5px;}
+.nav strong{font-size:12.8px;font-weight:600;}
+.nav small{display:block;color:var(--muted);font-size:10.5px;}
+.nav.active{background:#fff;border-color:var(--line);}
+.main{padding:14px 18px 40px;min-width:0;}
+.panel{display:none;} .panel.active{display:block;}
+.head h2{margin:0 0 3px;font-size:16px;font-weight:650;}
+.head p{margin:0 0 11px;color:var(--muted);font-size:12.5px;line-height:1.55;}
+.card{border:1px solid var(--line);border-radius:7px;padding:12px;margin-bottom:12px;}
+.card h3{margin:0 0 9px;font-size:13px;font-weight:650;color:#39404a;border-bottom:1px solid var(--line2);padding-bottom:7px;}
+canvas.cv{width:100%;display:block;border:1px solid var(--line2);border-radius:5px;background:#fff;touch-action:none;}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px;}
+.read{font-variant-numeric:tabular-nums;font-size:18px;font-weight:600;background:var(--soft);
+  border:1px solid var(--line);border-radius:5px;padding:6px 14px;display:inline-block;min-width:180px;text-align:center;}
+.note{color:var(--muted);font-size:12px;line-height:1.6;margin-top:8px;}
+table{border-collapse:collapse;font-size:12.5px;width:100%;}
+th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;}
+th{background:var(--soft);font-weight:600;}
+td.n{text-align:right;font-variant-numeric:tabular-nums;}
+.msg{border:1px solid #cfd9e4;background:#f2f7fc;border-radius:6px;padding:9px 12px;font-size:12.8px;line-height:1.65;margin-bottom:8px;}
+.msg .d{color:var(--muted);font-size:11.5px;}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;}
+@media(max-width:1040px){.two{grid-template-columns:1fr;}}
+.log{max-height:400px;overflow:auto;}
+.modal{position:fixed;inset:0;background:rgba(20,24,28,.34);display:grid;place-items:center;z-index:100;}
+.modal .box{background:#fff;border-radius:9px;padding:22px 26px;max-width:540px;border:1px solid var(--line);}
+.modal h3{margin:0 0 10px;font-size:16px;}
+.modal p{font-size:13.4px;line-height:1.75;margin:0 0 14px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topbar">
+  <span class="cal" id="cal">1750年 1月 1日</span>
+  <span class="where">現在地 <b id="site">江戸</b></span>
+  <span class="where">記録者 <b id="who">—</b></span>
+  <span class="rates" id="rates"></span>
+</div>
+<div class="tlwrap"><canvas id="cvTL"></canvas></div>
+
+<div class="workspace">
+  <aside class="side">
+    <button class="nav active" data-p="map"><span class="ico">図</span><span><strong>地図</strong><small>移動・観測者</small></span></button>
+    <button class="nav" data-p="quad"><span class="ico">象</span><span><strong>象限儀</strong><small>南中高度</small></span></button>
+    <button class="nav" data-p="tele"><span class="ico">望</span><span><strong>望遠鏡</strong><small>視直径・金星</small></span></button>
+    <button class="nav" data-p="transit"><span class="ico">日</span><span><strong>日面通過</strong><small>接触の観測</small></span></button>
+    <button class="nav" data-p="clock"><span class="ico">振</span><span><strong>振り子時計</strong><small>日差</small></span></button>
+    <button class="nav" data-p="calo"><span class="ico">熱</span><span><strong>熱量計</strong><small>日射</small></span></button>
+    <button class="nav" data-p="tool"><span class="ico">算</span><span><strong>計算具</strong><small>電卓・線形解析</small></span></button>
+    <button class="nav" data-p="book"><span class="ico">録</span><span><strong>記録帳</strong><small>報せ・観測</small></span></button>
+  </aside>
+
+  <main class="main">
+
+    <section class="panel active" id="p-map">
+      <div class="head"><h2>地図</h2><p>地点を選んで移動する。移動には街道の距離に応じた日数を要する。観測者を配置すると、あなたが別の場所にいる間もその地点で観測させることができる。</p></div>
+      <div class="card"><canvas class="cv" id="cvMap" style="height:470px"></canvas>
+        <div class="row" id="mapBtns"></div>
+        <div id="mapInfo"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-quad">
+      <div class="head"><h2>象限儀</h2><p>太陽が子午線を通るときの高度を測る。目盛は 10 秒角まで読める。大気差は補正済みである。</p></div>
+      <div class="card"><canvas class="cv" id="cvSky" style="height:390px"></canvas>
+        <div class="row">
+          <button class="primary" id="qMeasure">南中まで待って測る</button>
+          <span class="read" id="qRead">—</span>
+        </div>
+        <div class="row"><span class="note" style="margin:0">観測者に測らせる：</span><span id="qAssist"></span></div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-tele">
+      <div class="head"><h2>望遠鏡</h2><p>接眼部にマイクロメータの糸が二本ある。糸をつまんで太陽の両縁に合わせると、その間隔が視直径として読める。金星は同じ望遠鏡でその姿を見ることができる。</p></div>
+      <div class="card"><canvas class="cv" id="cvTele" style="height:430px"></canvas>
+        <div class="row">
+          <button id="teleSun" class="on">太陽</button>
+          <button id="teleVenus">金星</button>
+          <span class="read" id="teleRead">—</span>
+        </div>
+        <div class="row" id="teleBtns"></div>
+        <div id="teleInfo"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-transit">
+      <div class="head"><h2>日面通過</h2><p>金星が太陽面を横切る。接触の瞬間に記録する。時間の進みを遅くしておくこと。</p></div>
+      <div class="card"><canvas class="cv" id="cvTransit" style="height:440px"></canvas>
+        <div class="row" id="tBtns"></div>
+        <div id="tInfo"></div>
+      </div>
+      <div class="card"><h3>観測者の記録</h3><div id="tAssist"></div></div>
+    </section>
+
+    <section class="panel" id="p-clock">
+      <div class="head"><h2>振り子時計</h2><p>水銀補正振り子時計。温度の影響を受けない。恒星が子午線を通る時刻と比べ、一日あたりの進み遅れを読む。江戸の海面で正確に合わせてある。測定には現地で 10 日を要する。</p></div>
+      <div class="card"><canvas class="cv" id="cvClock" style="height:360px"></canvas>
+        <div class="row"><button class="primary" id="cMeasure">日差を測る（10日）</button><span class="read" id="cRead">—</span></div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-calo">
+      <div class="head"><h2>熱量計</h2><p>黒く塗った銅の水槽に日光を導き、水温の上昇率を読む。開口の面積 0.0200 m²、水の質量 0.200 kg。測定には 1 時間を要する。</p></div>
+      <div class="card"><canvas class="cv" id="cvCalo" style="height:400px"></canvas>
+        <div class="row">
+          <span class="note" style="margin:0">時刻</span>
+          <input type="range" id="caloHour" min="4" max="20" step="0.25" value="12" style="width:220px">
+          <span class="note" id="caloHourTxt" style="margin:0"></span>
+        </div>
+        <div class="row"><button class="primary" id="caloMeasure">測る</button><span class="read" id="caloRead">—</span></div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-tool">
+      <div class="head"><h2>計算具</h2><p>電卓と線形解析。いずれも江戸の時間を消費しない。</p></div>
+      <div class="two">
+        <div class="card"><h3>電卓</h3>
+          <input type="text" id="calcIn" placeholder="例： 4*pi^2*1.434e11^3/(3.156e7)^2"
+            style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:5px;font-variant-numeric:tabular-nums">
+          <div class="row" style="margin-top:8px"><button class="primary" id="calcGo">計算</button>
+            <span class="read" id="calcOut" style="min-width:230px">—</span></div>
+          <p class="note">使える記号： + - * / ^ ( ) &nbsp;/&nbsp; sqrt exp ln log abs sin cos tan asin acos atan &nbsp;/&nbsp; pi e<br>
+          指数表記は 1.5e11 のように書く。角度はラジアン。</p>
+          <div id="calcHist"></div>
+        </div>
+        <div class="card"><h3>線形解析</h3>
+          <textarea id="fitIn" rows="9" placeholder="x と y を空白かコンマで区切り、1 行に 1 組&#10;0.0   -0.13&#10;2.15e6  4.03&#10;..." style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:5px;font-variant-numeric:tabular-nums;resize:vertical"></textarea>
+          <div class="row"><button class="primary" id="fitGo">あてはめる</button>
+            <button id="fitClear">消す</button></div>
+          <div id="fitOut"></div>
+          <canvas class="cv" id="cvFit" style="height:230px;margin-top:9px"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-book">
+      <div class="head"><h2>記録帳</h2></div>
+      <div class="two">
+        <div class="card"><h3>出島からの報せ</h3><div class="log" id="news"></div></div>
+        <div class="card"><h3>観測の記録</h3><div class="log" id="recs"></div></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</div>
+
+<div class="modal" id="gate">
+  <div class="box" style="max-width:460px">
+    <h3>日輪学</h3>
+    <p>記録者の名を記せ。同じ名で入り直せば、途中から続けられる。<br>
+    生涯は一度きりであることに注意せよ。</p>
+    <input type="text" id="gateName" maxlength="24" placeholder="名"
+      style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:5px;margin-bottom:12px">
+    <div id="gateMsg" style="font-size:12.5px;color:#9c4b1e;min-height:18px;margin-bottom:10px"></div>
+    <button class="primary" id="gateGo">始める</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s), D2R=Math.PI/180, R2D=180/Math.PI, TAU=Math.PI*2;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function hashSeed(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){let t=a>>>0;return()=>{t+=0x6D2B79F5;let r=Math.imul(t^(t>>>15),1|t);r^=r+Math.imul(r^(r>>>7),61|r);return((r^(r>>>14))>>>0)/4294967296;};}
+const rng=mulberry32(hashSeed("nichirin-2026"));
+function gauss(s){let u=0,v=0;while(!u)u=rng();while(!v)v=rng();return s*Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v);}
+
+/* ============ 定数・地点 ============ */
+const Re=6371e3;
+const aV=Math.pow(224.701/365.256,2/3);
+const QPAR=8.794*(1/(1-aV)-1);
+const SUN_SD0=959.63, G=6.674e-11, RHO_B=7870, CW=4186;
+const SITES=[
+ {n:"宗谷",lat:45.42,lon:141.93,h:10,k:1.00,rho:0,d:1330},
+ {n:"松前",lat:41.43,lon:140.11,h:10,k:1.00,rho:0,d:1100},
+ {n:"仙台",lat:38.27,lon:140.87,h:40,k:1.00,rho:0,d:350},
+ {n:"男体山",lat:36.77,lon:139.49,h:2486,k:0.80,rho:2650,d:160},
+ {n:"立山",lat:36.57,lon:137.62,h:3003,k:0.60,rho:2750,d:380},
+ {n:"諏訪",lat:36.05,lon:138.11,h:760,k:0.90,rho:2600,d:220},
+ {n:"御嶽山",lat:35.89,lon:137.48,h:3067,k:0.80,rho:2700,d:350},
+ {n:"江戸",lat:35.68,lon:139.77,h:5,k:1.00,rho:0,d:0},
+ {n:"富士吉田",lat:35.48,lon:138.79,h:850,k:0.85,rho:2700,d:110},
+ {n:"富士山頂",lat:35.36,lon:138.73,h:3776,k:0.81,rho:2700,d:130},
+ {n:"京都",lat:35.01,lon:135.77,h:50,k:1.00,rho:0,d:490},
+ {n:"高野山",lat:34.21,lon:135.58,h:850,k:0.85,rho:2500,d:620},
+ {n:"阿蘇",lat:32.88,lon:131.08,h:1506,k:0.85,rho:2600,d:1150},
+ {n:"長崎",lat:32.74,lon:129.87,h:5,k:1.00,rho:0,d:1230},
+ {n:"鹿児島",lat:31.60,lon:130.56,h:5,k:1.00,rho:0,d:1350},
+ {n:"桜島",lat:31.58,lon:130.66,h:1117,k:0.70,rho:2750,d:1370},
+ {n:"那覇",lat:26.21,lon:127.68,h:5,k:1.00,rho:0,d:2100}
+];
+const idx=n=>SITES.findIndex(s=>s.n===n);
+const ROADS=[["江戸","仙台"],["仙台","松前"],["松前","宗谷"],["江戸","男体山"],["江戸","諏訪"],
+ ["諏訪","立山"],["諏訪","御嶽山"],["江戸","富士吉田"],["富士吉田","富士山頂"],["御嶽山","京都"],
+ ["江戸","京都"],["京都","高野山"],["京都","阿蘇"],["阿蘇","長崎"],["阿蘇","鹿児島"],
+ ["鹿児島","桜島"],["鹿児島","那覇"]];
+const SEA_ROADS=new Set(["鹿児島|那覇","仙台|松前"]);
+
+const COAST={
+honshu:[[140.5,41.20],[140.9,41.15],[141.42,41.42],[141.45,40.60],[141.90,39.95],[141.95,39.05],
+ [141.60,38.32],[141.05,38.42],[140.92,37.85],[141.02,37.10],[140.75,36.80],[140.62,36.30],
+ [140.88,35.78],[140.30,35.32],[139.90,34.92],[139.78,35.30],[139.62,35.02],[139.15,35.10],
+ [138.92,34.60],[138.80,35.00],[138.52,34.60],[137.90,34.62],[137.00,34.60],[136.90,34.82],
+ [136.82,34.20],[136.20,33.72],[135.80,33.50],[135.10,34.10],[135.02,34.62],[134.60,34.70],
+ [133.90,34.50],[133.00,34.40],[132.20,34.32],[131.50,34.00],[131.00,34.00],[130.92,34.42],
+ [131.55,34.72],[132.50,35.42],[133.50,35.60],[134.50,35.60],[135.50,35.62],[136.02,35.92],
+ [136.78,37.02],[137.30,37.22],[137.20,36.82],[138.02,37.20],[139.00,38.00],[139.52,38.90],
+ [139.90,39.90],[140.02,40.50],[140.40,41.15]],
+hokkaido:[[140.05,41.95],[140.55,41.72],[141.20,42.00],[141.62,42.60],[142.05,42.62],[143.30,42.30],
+ [144.30,42.92],[145.40,43.30],[145.42,43.92],[144.90,44.32],[144.00,44.10],[143.00,44.32],
+ [142.00,44.82],[141.62,45.12],[141.66,45.52],[141.20,45.20],[141.32,44.30],[140.40,43.42],
+ [140.02,43.20],[141.30,43.18],[140.52,42.62]],
+kyushu:[[130.90,33.90],[131.70,33.62],[131.92,33.30],[131.72,32.80],[131.52,32.00],[131.42,31.40],
+ [131.02,31.42],[130.70,31.02],[130.62,31.32],[130.20,31.20],[130.22,32.00],[129.82,32.62],
+ [129.52,33.02],[129.90,33.22],[130.02,33.62],[130.40,33.72]],
+shikoku:[[134.70,34.22],[134.62,33.82],[134.20,33.62],[133.60,33.52],[133.30,33.20],[132.72,32.92],
+ [132.42,33.32],[132.62,33.92],[133.50,34.32],[134.20,34.22]],
+okinawa:[[127.65,26.05],[127.78,26.16],[128.02,26.50],[128.32,26.72],[128.20,26.78],[127.90,26.50],[127.62,26.22]]
+};
+
+/* ============ 天文 ============ */
+function jdOf(y,m,d,hr){ if(m<=2){y--;m+=12;} const A=Math.floor(y/100),B=2-A+Math.floor(A/4);
+  return Math.floor(365.25*(y+4716))+Math.floor(30.6001*(m+1))+d+B-1524.5+(hr||0)/24; }
+function calOf(J){ const z=Math.floor(J+0.5), f=J+0.5-z; let A=z;
+  if(z>=2299161){const al=Math.floor((z-1867216.25)/36524.25);A=z+1+al-Math.floor(al/4);}
+  const B=A+1524,C=Math.floor((B-122.1)/365.25),D=Math.floor(365.25*C),E=Math.floor((B-D)/30.6001);
+  const day=B-D-Math.floor(30.6001*E)+f, mo=E<14?E-1:E-13, yr=mo>2?C-4716:C-4715;
+  const di=Math.floor(day); return {y:yr,m:mo,d:di,h:(day-di)*24}; }
+let _sp={};
+function sunPos(J){
+  const key=Math.round(J*17280);
+  const v0=_sp[key]; if(v0) return v0;
+  const n=J-2451545.0;
+  const L=((280.460+0.9856474*n)%360+360)%360, g=(((357.528+0.9856003*n)%360+360)%360)*D2R;
+  const lam=(L+1.915*Math.sin(g)+0.020*Math.sin(2*g))*D2R, eps=(23.439-4e-7*n)*D2R;
+  const R=1.00014-0.01671*Math.cos(g)-0.00014*Math.cos(2*g);
+  const v={ra:Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam)),
+            dec:Math.asin(Math.sin(eps)*Math.sin(lam)),R,lam:lam*R2D};
+  _sp[key]=v; return v; }
+const gmst=J=>((280.46061837+360.98564736629*(J-2451545.0))%360+360)%360;
+function sunAltAz(J,site){
+  const s=sunPos(J), H=(gmst(J)+site.lon)*D2R-s.ra, p=site.lat*D2R;
+  const sa=Math.sin(p)*Math.sin(s.dec)+Math.cos(p)*Math.cos(s.dec)*Math.cos(H);
+  const alt=Math.asin(clamp(sa,-1,1));
+  const az=Math.atan2(-Math.cos(s.dec)*Math.sin(H),
+        Math.sin(s.dec)*Math.cos(p)-Math.cos(s.dec)*Math.sin(p)*Math.cos(H));
+  return {alt:alt*R2D, az:((az*R2D)%360+360)%360}; }
+const sunAlt=(J,s)=>sunAltAz(J,s).alt;
+function noonJD(J,site){ const day=Math.floor(J-0.5)+0.5; let t=day+(12-site.lon/15)/24;
+  for(let i=0;i<4;i++){ const s=sunPos(t); let H=(gmst(t)+site.lon)*D2R-s.ra;
+    H=Math.atan2(Math.sin(H),Math.cos(H)); t-=H*R2D/360.98564736629; } return t; }
+const T0_TRANSIT=jdOf(1761,6,6,5+19/60);
+function venusLon(J){ const lamE=(sunPos(T0_TRANSIT).lam+180)%360;
+  return ((lamE+360*(J-T0_TRANSIT)/224.701)%360+360)%360; }
+function venusGeo(J){ const s=sunPos(J), lamE=(s.lam+180)%360, lv=venusLon(J);
+  const ex=Math.cos(lamE*D2R), ey=Math.sin(lamE*D2R);
+  const vx=aV*Math.cos(lv*D2R)-ex, vy=aV*Math.sin(lv*D2R)-ey;
+  const dist=Math.hypot(vx,vy);
+  const el=Math.acos(clamp((vx*(-ex)+vy*(-ey))/dist,-1,1))*R2D;
+  const svx=-aV*Math.cos(lv*D2R), svy=-aV*Math.sin(lv*D2R);
+  const pa=Math.acos(clamp((svx*(-vx)+svy*(-vy))/(aV*dist),-1,1));
+  return {el, dist, phase:(1+Math.cos(pa))/2, sd:8.41/dist}; }
+
+const TRANSITS=[{y:1761,t0:T0_TRANSIT,y0:573,P:278},{y:1769,t0:jdOf(1769,6,3,22+25/60),y0:608,P:262}];
+const RS_ANG=945.6, RV_ANG=28.9, WSPD=240;
+function tSep(J,tr,site){
+  const xi=WSPD*(J-tr.t0)*24, eta=tr.y0, P=tr.P*D2R;
+  let sE=xi*Math.sin(P)+eta*Math.cos(P), sN=xi*Math.cos(P)-eta*Math.sin(P);
+  const s=sunPos(J), th=(gmst(J)+site.lon)*D2R, ph=site.lat*D2R;
+  const rx=Math.cos(ph)*Math.cos(th), ry=Math.cos(ph)*Math.sin(th), rz=Math.sin(ph);
+  const bE=-rx*Math.sin(s.ra)+ry*Math.cos(s.ra);
+  const bN=-rx*Math.sin(s.dec)*Math.cos(s.ra)-ry*Math.sin(s.dec)*Math.sin(s.ra)+rz*Math.cos(s.dec);
+  return {r:Math.hypot(sE-QPAR*bE,sN-QPAR*bN), E:sE-QPAR*bE, N:sN-QPAR*bN}; }
+const _ct={};
+function contactTimes(tr,site){
+  const key=tr.y+"|"+site.n; if(_ct[key]) return _ct[key];
+  const found=[], dt=10/86400; let J=tr.t0-0.30, prev=tSep(J,tr,site).r;
+  while(J<tr.t0+0.30){ J+=dt; const s=tSep(J,tr,site).r;
+    for(const L of [RS_ANG+RV_ANG,RS_ANG-RV_ANG]){
+      if((prev-L)*(s-L)<0){ let lo=J-dt,hi=J;
+        for(let i=0;i<36;i++){const m=(lo+hi)/2;
+          if((tSep(lo,tr,site).r-L)*(tSep(m,tr,site).r-L)<0)hi=m;else lo=m;}
+        found.push((lo+hi)/2);} }
+    prev=s; }
+  found.sort((a,b)=>a-b); _ct[key]=found; return found; }
+
+/* ============ 物理 ============ */
+const g0=p=>9.78049*(1+0.005288*Math.pow(Math.sin(p*D2R),2));
+const rhoAir=h=>1.225*Math.pow(1-2.256e-5*h,4.256);
+function gEff(s){ const gg=g0(s.lat)-2*g0(s.lat)*s.h/Re+2*Math.PI*G*(s.rho||0)*s.k*s.h;
+  return gg*(1-rhoAir(s.h)/RHO_B); }
+const GE_EDO=gEff(SITES[idx("江戸")]);
+const clockRate=s=>43200*(gEff(s)-GE_EDO)/GE_EDO;
+const S0=1361, TAU_ATM=0.75, CAL_A=0.0200, CAL_M=0.200;
+function caloRate(J,site,alt){ if(alt<=3) return null;
+  const m=1/Math.sin(alt*D2R), R=sunPos(J).R;
+  return (S0/(R*R))*CAL_A*Math.pow(TAU_ATM,m)/(CAL_M*CW); }
+
+/* ============ 状態 ============ */
+const T_START=jdOf(1750,1,1,0), T_END=jdOf(1850,1,1,0), DELAY_MAX=3000;
+const RATES=[{k:"yr",lab:"1年/分",v:1/60},{k:"mo",lab:"1月/分",v:1/12/60},
+             {k:"day",lab:"1日/分",v:1/365.25/60},{k:"hr",lab:"1時/分",v:1/365.25/24/60}];
+const st={ player:null, jd:T_START, rate:"yr", delay:0, real:0, site:"江戸", panel:"map",
+  assistants:[], recs:[], news:[], seen:{}, over:false, last:0,
+  travel:null, caloHour:12, teleMode:"sun", wires:[-0.34,0.34], drag:null,
+  clockAnim:null, caloAnim:null, trail:[], fitText:"", calcHist:[], ready:false };
+const cur=()=>SITES[idx(st.site)];
+const mmss=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+const fmtDate=J=>{const c=calOf(J);return `${c.y}年 ${c.m}月 ${c.d}日`;};
+function fmtDT(J){const c=calOf(J),h=Math.floor(c.h),mi=Math.floor((c.h-h)*60),s=Math.round((((c.h-h)*60)-mi)*60);
+  return `${c.y}/${String(c.m).padStart(2,"0")}/${String(c.d).padStart(2,"0")} ${String(h).padStart(2,"0")}:${String(mi).padStart(2,"0")}:${String(Math.min(59,s)).padStart(2,"0")}`;}
+function fmtAng(a){const d=Math.floor(a),m=Math.floor((a-d)*60),s=((a-d)*60-m)*60;
+  return `${d}° ${String(m).padStart(2,"0")}′ ${s.toFixed(0).padStart(2,"0")}″`;}
+
+/* ============ 報せ ============ */
+const NEWS=[
+ {y:1750.0,t:"ハレーの論文（1716年）が届いた。金星が太陽面を通過する現象が 1761 年と 1769 年に起こり、離れた 2 地点から通過の継続時間を測れば太陽までの距離が決まるという。<br><br>なお論文中では、現在ひろく用いられている太陽視差の値として 12.5&Prime; が仮定されている。"},
+ {y:1760.5,t:"来年 6 月 6 日、金星の日面通過が起こる。日本からは全経過が見えるとのこと。"},
+ {y:1768.5,t:"来年 6 月 4 日の未明、ふたたび金星の日面通過が起こる。次は 100 年以上先である。"},
+ {y:1774.0,t:"マスケリンがスコットランドのシーハリオン山で鉛直線の振れを測り、地球の平均密度を 4.71&times;10<sup>3</sup> kg/m<sup>3</sup> と結論したという。"},
+ {y:1830.0,t:"ライエルの『地質学原理』が届いた。地層と侵食の観察から、地球の年齢は少なくとも数億年であるという。"},
+ {y:1838.0,t:"プイエが黒体の受熱から日射の強さを測り、大気外における値を 1.23&times;10<sup>3</sup> W/m<sup>2</sup> と報告したという。"}
+];
+const yearFrac=J=>1750+(J-T_START)/365.2422;
+function checkNews(){ const y=yearFrac(st.jd);
+  NEWS.forEach((n,i)=>{ if(!st.seen["n"+i]&&y>=n.y){ st.seen["n"+i]=true;
+    st.news.unshift({y:fmtDate(st.jd),t:n.t}); renderNews(); modal("出島からの報せ",n.t);} }); }
+function advance(days){ st.jd=Math.min(T_END,st.jd+days); checkNews(); }
+function modal(title,body){ const d=document.createElement("div"); d.className="modal";
+  d.innerHTML=`<div class="box"><h3>${title}</h3><p>${body}</p><button class="primary">閉じる</button></div>`;
+  d.querySelector("button").onclick=()=>d.remove(); document.body.appendChild(d); }
+function rec(kind,txt){ st.recs.unshift({d:fmtDate(st.jd),kind,txt}); renderRecs(); }
+function renderRecs(){ $("#recs").innerHTML=st.recs.length?st.recs.map(r=>
+  `<div class="msg"><span class="d">${r.d}　${r.kind}</span><br>${r.txt}</div>`).join(""):'<p class="note">まだ記録がない。</p>'; }
+function renderNews(){ $("#news").innerHTML=st.news.length?st.news.map(n=>
+  `<div class="msg"><span class="d">${n.y}</span><br>${n.t}</div>`).join(""):'<p class="note">まだ報せがない。</p>'; }
+
+/* ============ canvas 共通 ============ */
+function cx2d(id){ const cv=$(id), r=cv.getBoundingClientRect(), dpr=devicePixelRatio||1;
+  const w=Math.max(1,Math.round(r.width*dpr)), h=Math.max(1,Math.round(r.height*dpr));
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  const c=cv.getContext("2d"); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,r.width,r.height);
+  return {c,w:r.width,h:r.height}; }
+function txt(c,s,x,y,col,size,al,base){ c.fillStyle=col||"#6b7278";
+  c.font=(size||11)+"px -apple-system,Segoe UI,sans-serif"; c.textAlign=al||"left";
+  c.textBaseline=base||"middle"; c.fillText(s,x,y); }
+function line(c,x1,y1,x2,y2,col,lw){ c.strokeStyle=col||"#999"; c.lineWidth=lw||1;
+  c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+function sunFace(c,cx,cy,R){
+  const g=c.createRadialGradient(cx,cy,0,cx,cy,R);
+  for(let i=0;i<=10;i++){ const t=i/10, mu=Math.sqrt(Math.max(0,1-t*t)), I=1-0.6*(1-mu);
+    const r=Math.round(255*Math.min(1,0.45+0.55*I)), gg=Math.round(115+128*I), b=Math.round(28+72*I);
+    g.addColorStop(t,`rgb(${r},${gg},${b})`); }
+  c.fillStyle=g; c.beginPath(); c.arc(cx,cy,R,0,TAU); c.fill();
+  c.strokeStyle="rgba(150,90,20,.5)"; c.lineWidth=1; c.stroke(); }
+
+/* ============ 年表 ============ */
+function drawTL(){
+  const {c,w,h}=cx2d("#cvTL"); const L=54,R=w-14,y=22;
+  const X=yr=>L+(yr-1750)/100*(R-L);
+  line(c,L,y,R,y,"#d8dde1",2);
+  for(let yr=1750;yr<=1850;yr+=10){ line(c,X(yr),y-5,X(yr),y+5,"#c2cad0",1);
+    txt(c,String(yr),X(yr),y+15,"#aab3ba",10,"center"); }
+  NEWS.forEach(n=>{ const x=X(n.y); line(c,x,y-8,x,y+8,"#9fb8d4",1.5); });
+  TRANSITS.forEach(t=>{ const x=X(yearFrac(t.t0));
+    line(c,x,y-12,x,y+12,"#c0453b",2.5); txt(c,String(t.y),x,y-19,"#c0453b",10.5,"center"); });
+  const xc=X(yearFrac(st.jd));
+  c.fillStyle="#1f5fa8"; c.beginPath(); c.moveTo(xc,y-13); c.lineTo(xc-5,y-21); c.lineTo(xc+5,y-21); c.closePath(); c.fill();
+  line(c,xc,y-13,xc,y+13,"#1f5fa8",2);
+  txt(c,"生涯",8,y,"#6b7278",11);
+  const y2=h-11, f=st.delay/DELAY_MAX;
+  c.lineCap="butt";
+  line(c,L,y2,R,y2,"#eceff1",7);
+  c.strokeStyle=f>0.85?"#c0453b":"#1f5fa8"; c.lineWidth=7;
+  c.beginPath(); c.moveTo(L,y2); c.lineTo(L+(R-L)*Math.min(1,f),y2); c.stroke();
+  txt(c,"遅延",8,y2,"#6b7278",11);
+  txt(c,`${mmss(st.delay)} / 50:00　　実時間 ${mmss(st.real)}`,R,y2-1,"#6b7278",11,"right");
+}
+
+/* ============ 地図 ============ */
+const MAPBOX={x0:126.4,x1:146.4,y0:25.2,y1:46.4};
+function mapXY(lon,lat,w,h){
+  const pad=26, aw=w-2*pad, ah=h-2*pad;
+  const s=Math.min(aw/(MAPBOX.x1-MAPBOX.x0), ah/((MAPBOX.y1-MAPBOX.y0)*1.22));
+  const cxm=(MAPBOX.x0+MAPBOX.x1)/2, cym=(MAPBOX.y0+MAPBOX.y1)/2;
+  return { x:w/2+(lon-cxm)*s, y:h/2-(lat-cym)*s*1.22 }; }
+function drawMap(){
+  const {c,w,h}=cx2d("#cvMap");
+  c.fillStyle="#eaf1f6"; c.fillRect(0,0,w,h);
+  c.strokeStyle="rgba(150,170,185,.30)"; c.lineWidth=0.7; c.setLineDash([3,4]);
+  for(let la=26;la<=46;la+=4){ const a=mapXY(MAPBOX.x0,la,w,h), b=mapXY(MAPBOX.x1,la,w,h);
+    c.beginPath(); c.moveTo(a.x,a.y); c.lineTo(b.x,b.y); c.stroke(); }
+  c.setLineDash([]);
+  for(const key in COAST){ const pts=COAST[key];
+    c.beginPath(); pts.forEach((p,i)=>{ const q=mapXY(p[0],p[1],w,h); i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y); });
+    c.closePath(); c.fillStyle="#f7f4ec"; c.fill(); c.strokeStyle="#b9a98c"; c.lineWidth=1.1; c.stroke(); }
+  ROADS.forEach(([a,b])=>{ const A=SITES[idx(a)],B=SITES[idx(b)];
+    const p=mapXY(A.lon,A.lat,w,h), q=mapXY(B.lon,B.lat,w,h);
+    const sea=SEA_ROADS.has(a+"|"+b)||SEA_ROADS.has(b+"|"+a);
+    c.strokeStyle=sea?"#9db6c6":"#cbb68f"; c.lineWidth=sea?1.1:1.7;
+    if(sea)c.setLineDash([5,4]);
+    c.beginPath(); c.moveTo(p.x,p.y); c.lineTo(q.x,q.y); c.stroke(); c.setLineDash([]); });
+  SITES.forEach(s=>{ const p=mapXY(s.lon,s.lat,w,h), here=s.n===st.site, asg=st.assistants.includes(s.n);
+    if(s.h>700){ const hh=6+s.h/420;
+      c.fillStyle="#c3b18f"; c.strokeStyle="#8a7550"; c.lineWidth=1;
+      c.beginPath(); c.moveTo(p.x,p.y-hh); c.lineTo(p.x-hh*0.75,p.y+2); c.lineTo(p.x+hh*0.75,p.y+2);
+      c.closePath(); c.fill(); c.stroke();
+      if(s.h>2500){ c.fillStyle="#fff"; c.beginPath(); c.moveTo(p.x,p.y-hh);
+        c.lineTo(p.x-hh*0.28,p.y-hh*0.62); c.lineTo(p.x+hh*0.28,p.y-hh*0.62); c.closePath(); c.fill(); } }
+    else { c.beginPath(); c.arc(p.x,p.y,4,0,TAU); c.fillStyle="#fff"; c.fill();
+      c.strokeStyle="#8a949c"; c.lineWidth=1.2; c.stroke(); }
+    if(asg){ c.beginPath(); c.arc(p.x,p.y,9,0,TAU); c.strokeStyle="#c8862a"; c.lineWidth=1.6; c.stroke(); }
+    txt(c,s.n,p.x+9,p.y-1,here?"#1f5fa8":"#4a5158",here?12:10.5,"left"); });
+  let P;
+  if(st.travel){ const t=clamp(st.travel.p,0,1), A=SITES[idx(st.travel.from)], B=SITES[idx(st.travel.to)];
+    P=mapXY(A.lon+(B.lon-A.lon)*t, A.lat+(B.lat-A.lat)*t, w, h); }
+  else { const s=cur(); P=mapXY(s.lon,s.lat,w,h); }
+  c.fillStyle="#1f5fa8"; c.beginPath(); c.arc(P.x,P.y-10,4.2,0,TAU); c.fill();
+  c.strokeStyle="#1f5fa8"; c.lineWidth=2.6; c.lineCap="round";
+  c.beginPath(); c.moveTo(P.x,P.y-6); c.lineTo(P.x,P.y+1); c.stroke();
+  c.beginPath(); c.moveTo(P.x-4,P.y+7); c.lineTo(P.x,P.y+1); c.lineTo(P.x+4,P.y+7); c.stroke();
+  c.lineCap="butt";
+  if(st.travel) txt(c,"移動中 → "+st.travel.to,w/2,18,"#9c4b1e",13,"center");
+  txt(c,"北 ↑",14,20,"#8ba0ad",11);
+}
+function travelDays(a,b){ const A=SITES[idx(a)],B=SITES[idx(b)];
+  const dl=(A.lat-B.lat)*111, dn=(A.lon-B.lon)*111*Math.cos((A.lat+B.lat)/2*D2R);
+  return Math.max(2,Math.round(Math.hypot(dl,dn)*1.35/40)); }
+function renderMapUI(){
+  const box=$("#mapBtns"); box.innerHTML="";
+  const sel=document.createElement("select");
+  SITES.forEach(s=>{ if(s.n!==st.site){ const o=document.createElement("option");
+    o.value=s.n; o.textContent=`${s.n}（${travelDays(st.site,s.n)}日）`; sel.appendChild(o);} });
+  const go=document.createElement("button"); go.className="primary"; go.textContent="移動する";
+  go.onclick=()=>{ if(st.travel||st.over)return; const to=sel.value, d=travelDays(st.site,to);
+    st.travel={from:st.site,to,p:0}; advance(d); };
+  const asg=document.createElement("button"); asg.textContent="ここに観測者を置く";
+  asg.onclick=()=>{ if(st.assistants.includes(st.site))return;
+    if(st.assistants.length>=4){modal("観測者","置ける観測者は 4 人までである。");return;}
+    st.assistants.push(st.site); rec("観測者",`${st.site} に観測者を配置した。`);
+    renderMapUI(); renderQAssist(); renderTransitAssist(); };
+  box.append(sel,go,asg);
+  const s=cur();
+  $("#mapInfo").innerHTML=`<table style="margin-top:10px"><tr><th>地点</th><th>経度</th><th>標高</th><th>k</th><th>ρ</th><th>江戸から</th></tr>
+   <tr><td>${s.n}</td><td class="n">${s.lon.toFixed(2)}°E</td><td class="n">${s.h} m</td><td class="n">${s.k.toFixed(2)}</td>
+   <td class="n">${s.rho||"—"}</td><td class="n">${s.d} km</td></tr></table>
+   <p class="note">配置済みの観測者：${st.assistants.length?st.assistants.join("、"):"なし"}</p>`;
+}
+
+/* ============ 空 ============ */
+function skyXY(alt,az,w,h){
+  const L=44,R=w-16,T=22,B=h-34;
+  let a=az; if(a<60)a+=360;
+  return { x:L+clamp((a-60)/240,0,1)*(R-L), y:B-clamp(alt,0,90)/90*(B-T) }; }
+function drawSky(){
+  const {c,w,h}=cx2d("#cvSky"); const s=cur(), B=h-34;
+  c.fillStyle="#f6fafd"; c.fillRect(0,0,w,B);
+  c.fillStyle="#efeadf"; c.fillRect(0,B,w,h-B);
+  line(c,0,B,w,B,"#c6b99e",1.4);
+  for(let a=0;a<=90;a+=15){ const p=skyXY(a,180,w,h);
+    line(c,44,p.y,w-16,p.y,"#e4ecf2",1); txt(c,a+"°",38,p.y,"#aab3ba",10,"right"); }
+  [[90,"東"],[135,"南東"],[180,"南"],[225,"南西"],[270,"西"]].forEach(v=>{
+    const p=skyXY(0,v[0],w,h); line(c,p.x,B,p.x,B+5,"#c6b99e",1); txt(c,v[1],p.x,B+16,"#8a7f6d",11,"center"); });
+  const day=Math.floor(st.jd-0.5)+0.5;
+  const arc=(J0,col,lw,dash)=>{ c.strokeStyle=col; c.lineWidth=lw; if(dash)c.setLineDash(dash);
+    c.beginPath(); let started=false;
+    for(let i=0;i<=240;i++){ const q=sunAltAz(J0+i/240,s);
+      if(q.alt<0){started=false;continue;}
+      const p=skyXY(q.alt,q.az,w,h); if(!started){c.moveTo(p.x,p.y);started=true;}else c.lineTo(p.x,p.y); }
+    c.stroke(); c.setLineDash([]); };
+  const yy=calOf(st.jd).y;
+  arc(jdOf(yy,6,21,0)-0.5,"#e0e8ee",1.2,[4,4]);
+  arc(jdOf(yy,12,21,0)-0.5,"#e0e8ee",1.2,[4,4]);
+  arc(day,"#e6bb7a",1.8,null);
+  const q=sunAltAz(st.jd,s);
+  if(q.alt>0){ const p=skyXY(q.alt,q.az,w,h);
+    const O=skyXY(0,180,w,h);
+    c.strokeStyle="#b9a98c"; c.lineWidth=1;
+    c.beginPath(); c.arc(O.x,B,54,-Math.PI/2,0); c.stroke();
+    line(c,O.x,B,p.x,p.y,"#a89676",1);
+    const gg=c.createRadialGradient(p.x,p.y,0,p.x,p.y,17);
+    gg.addColorStop(0,"rgba(240,190,90,.85)"); gg.addColorStop(1,"rgba(240,190,90,0)");
+    c.fillStyle=gg; c.beginPath(); c.arc(p.x,p.y,17,0,TAU); c.fill();
+    c.fillStyle="#d99b2c"; c.beginPath(); c.arc(p.x,p.y,7,0,TAU); c.fill();
+  } else txt(c,"太陽は地平線の下にある",w/2,B/2,"#8a949c",13,"center");
+  const nJ=noonJD(st.jd,s);
+  txt(c,`${fmtDT(st.jd)}　${s.n}`,14,14,"#6b7278",12);
+  const dh=(nJ>st.jd?nJ-st.jd:nJ+1-st.jd)*24;
+  txt(c,`南中まで ${dh.toFixed(1)} 時間`,w-16,14,"#8a949c",11.5,"right");
+  txt(c,"点線は夏至と冬至の日周",w-16,h-14,"#b5bdc4",10.5,"right");
+}
+
+/* ============ 望遠鏡 ============ */
+const FIELD_ARCMIN=42;
+function teleR(){ const r=$("#cvTele").getBoundingClientRect(); return Math.min(r.width,r.height)*0.44; }
+function drawTele(){
+  const {c,w,h}=cx2d("#cvTele"); const R=Math.min(w,h)*0.44, X=w/2, Y=h/2;
+  c.fillStyle="#fbfbfc"; c.fillRect(0,0,w,h);
+  c.save(); c.beginPath(); c.arc(X,Y,R,0,TAU); c.clip();
+  c.fillStyle="#1b1d20"; c.fillRect(0,0,w,h);
+  const ppa=2*R/FIELD_ARCMIN;
+  if(st.teleMode==="sun"){
+    sunFace(c,X,Y,SUN_SD0/sunPos(st.jd).R/60*ppa);
+    st.wires.forEach((u,i)=>{ const x=X+u*R;
+      c.strokeStyle=(i===st.drag)?"#4ea3ff":"#101215"; c.lineWidth=(i===st.drag)?2.6:1.8;
+      c.beginPath(); c.moveTo(x,Y-R); c.lineTo(x,Y+R); c.stroke(); });
+  } else {
+    const v=venusGeo(st.jd), rad=Math.max(5,v.sd/60*ppa*6), f=clamp(v.phase,0,1);
+    c.fillStyle="#26282c"; c.beginPath(); c.arc(X,Y,rad,0,TAU); c.fill();
+    c.save(); c.beginPath();
+    c.arc(X,Y,rad,-Math.PI/2,Math.PI/2,false);
+    c.ellipse(X,Y,rad*Math.abs(2*f-1),rad,0,Math.PI/2,-Math.PI/2,f>0.5);
+    c.closePath(); c.fillStyle="#f2e6cf"; c.fill(); c.restore();
+    c.strokeStyle="#3a3d42"; c.lineWidth=1; c.beginPath(); c.arc(X,Y,rad,0,TAU); c.stroke();
+  }
+  c.restore();
+  c.strokeStyle="#39404a"; c.lineWidth=3; c.beginPath(); c.arc(X,Y,R,0,TAU); c.stroke();
+  txt(c,st.teleMode==="sun"?"視野 42′　糸をつまんで両縁に合わせる":"視野 42′（金星は 6 倍に拡大して描いてある）",
+      14,16,"#8a949c",11.5);
+}
+function teleReading(){ const R=teleR();
+  return Math.abs(st.wires[0]-st.wires[1])*R/(2*R/FIELD_ARCMIN)*60; }
+function renderTeleUI(){
+  $("#teleSun").classList.toggle("on",st.teleMode==="sun");
+  $("#teleVenus").classList.toggle("on",st.teleMode==="venus");
+  const box=$("#teleBtns"); box.innerHTML="";
+  if(st.teleMode==="sun"){
+    const b=document.createElement("button"); b.className="primary"; b.textContent="この読みを記録する";
+    b.onclick=()=>{ if(st.over)return; const a=teleReading(), m=Math.floor(a/60);
+      rec("視直径",`太陽の視直径 ${m}′ ${(a-60*m).toFixed(1)}″`);
+      modal("記録した",`太陽の視直径 ${m}′ ${(a-60*m).toFixed(1)}″`); };
+    box.appendChild(b);
+    $("#teleInfo").innerHTML='<p class="note">糸の間隔がそのまま読みになる。周縁減光のため縁は暗い。合わせ方に注意すること。</p>';
+  } else {
+    const b=document.createElement("button"); b.className="primary"; b.textContent="離角を測る";
+    b.onclick=()=>{ if(st.over)return; advance(0.05); const v=venusGeo(st.jd);
+      if(v.el<10){ $("#teleRead").textContent="太陽に近すぎる"; return; }
+      const e=v.el+gauss(0.5/60), d=Math.floor(e);
+      $("#teleRead").textContent=`${d}° ${((e-d)*60).toFixed(1)}′`;
+      rec("金星",`金星の離角 ${d}° ${((e-d)*60).toFixed(1)}′`); };
+    box.appendChild(b);
+    $("#teleInfo").innerHTML='<p class="note">金星の満ち欠けは太陽・金星・地球のなす角で決まる。</p>';
+  }
+}
+
+/* ============ 日面通過 ============ */
+function activeTransit(){ for(const t of TRANSITS) if(Math.abs(st.jd-t.t0)<0.30) return t; return null; }
+function drawTransit(){
+  const {c,w,h}=cx2d("#cvTransit");
+  const X=w*0.40, Y=h/2, R=Math.min(w*0.36,h*0.44);
+  const tr=activeTransit(), s=cur();
+  c.fillStyle="#fafafa"; c.fillRect(0,0,w,h);
+  sunFace(c,X,Y,R);
+  if(!tr){ txt(c,"いま日面通過は起きていない",X,Y,"#7a4a22",14,"center"); st.trail.length=0; return; }
+  const alt=sunAlt(st.jd,s);
+  txt(c,`${fmtDT(st.jd)}　${s.n}　太陽高度 ${alt.toFixed(1)}°`,14,16,"#6b7278",12);
+  if(alt<0){ c.fillStyle="rgba(40,44,50,.72)"; c.beginPath(); c.arc(X,Y,R,0,TAU); c.fill();
+    txt(c,"太陽は地平線の下にある",X,Y,"#fff",14,"center"); return; }
+  const sc=R/RS_ANG, p=tSep(st.jd,tr,s);
+  if(!st.trail.length||Math.abs(st.trail[st.trail.length-1].J-st.jd)>1/1440){
+    st.trail.push({J:st.jd,E:p.E,N:p.N}); if(st.trail.length>900)st.trail.shift(); }
+  c.strokeStyle="rgba(90,60,25,.26)"; c.lineWidth=1; c.beginPath();
+  st.trail.forEach((q,i)=>{const x=X+q.E*sc,y=Y-q.N*sc; i?c.lineTo(x,y):c.moveTo(x,y);}); c.stroke();
+  const vx=X+p.E*sc, vy=Y-p.N*sc, vr=Math.max(2,RV_ANG*sc);
+  const drawVenus=(ax,ay,z)=>{
+    const d=Math.abs(p.r-(RS_ANG-RV_ANG));
+    if(d<RV_ANG*0.9&&p.r<RS_ANG){ const t=1-d/(RV_ANG*0.9), ux=p.E/p.r, uy=p.N/p.r;
+      const ex=ax+ux*RS_ANG*sc*z, ey=ay-uy*RS_ANG*sc*z;
+      const bx=ax+p.E*sc*z, by=ay-p.N*sc*z;
+      c.strokeStyle=`rgba(32,26,18,${0.6*t})`; c.lineWidth=vr*z*1.1*t+0.8; c.lineCap="round";
+      c.beginPath(); c.moveTo(bx,by); c.lineTo(ex,ey); c.stroke(); c.lineCap="butt"; }
+    c.fillStyle="#14161a"; c.beginPath();
+    c.arc(ax+p.E*sc*z, ay-p.N*sc*z, vr*z, 0, TAU); c.fill(); };
+  if(p.r<RS_ANG+3*RV_ANG) drawVenus(X,Y,1);
+  if(Math.abs(p.r-RS_ANG)<3.2*RV_ANG){
+    const ir=Math.min(96,h*0.24), ix=w-ir-26, iy=ir+26, Z=8;
+    c.save(); c.beginPath(); c.arc(ix,iy,ir,0,TAU); c.clip();
+    c.fillStyle="#fafafa"; c.fillRect(ix-ir,iy-ir,2*ir,2*ir);
+    const ux=p.E/p.r, uy=p.N/p.r;
+    const ax=ix-ux*RS_ANG*sc*Z, ay=iy+uy*RS_ANG*sc*Z;
+    sunFace(c,ax,ay,R*Z); drawVenus(ax,ay,Z);
+    c.restore();
+    c.strokeStyle="#39404a"; c.lineWidth=2; c.beginPath(); c.arc(ix,iy,ir,0,TAU); c.stroke();
+    txt(c,"×8",ix,iy+ir+13,"#8a949c",11,"center");
+  }
+}
+function renderTransitUI(){
+  const tr=activeTransit(), box=$("#tBtns");
+  const sig=tr?tr.y:"none";
+  if(box.dataset.sig!==String(sig)+"|"+st.site){ box.dataset.sig=String(sig)+"|"+st.site; box.innerHTML="";
+    if(tr){ const s=cur(), ct=contactTimes(tr,s);
+      ["第1接触","第2接触","第3接触","第4接触"].forEach((lab,i)=>{
+        const b=document.createElement("button"); b.textContent=lab+"を記録"; b.dataset.i=i;
+        b.onclick=()=>{ const T=contactTimes(tr,cur())[i]; if(T===undefined)return;
+          const t=T+gauss(15/86400);
+          rec("日面通過",`${tr.y}年 ${cur().n} ${lab} ${fmtDT(t)}`);
+          modal("接触を記録した",`${cur().n}　${lab}<br>${fmtDT(t)}`); };
+        box.appendChild(b); }); }
+    $("#tInfo").innerHTML=tr?'<p class="note">接触の前後 10 分のあいだだけ記録できる。黒滴のため、瞬間の判定には限界がある。</p>'
+      :'<p class="note">通過が近づくと出島から報せがある。</p>';
+  }
+  if(tr){ const s=cur(), ct=contactTimes(tr,s);
+    box.querySelectorAll("button").forEach(b=>{ const T=ct[+b.dataset.i];
+      b.disabled=(T===undefined)||Math.abs(st.jd-T)>10/1440||sunAlt(st.jd,s)<0||st.over; }); }
+}
+function renderTransitAssist(){
+  const box=$("#tAssist");
+  if(!st.assistants.length){ box.innerHTML='<p class="note">観測者がいない。</p>'; return; }
+  box.innerHTML="";
+  const past=TRANSITS.filter(t=>st.jd>t.t0+0.30);
+  st.assistants.forEach(n=>{
+    const b=document.createElement("button"); b.textContent=n+" の記録を受け取る"; b.disabled=!past.length;
+    b.onclick=()=>{ const p2=TRANSITS.filter(t=>st.jd>t.t0+0.30);
+      const tr2=p2[p2.length-1], s2=SITES[idx(n)], ct=contactTimes(tr2,s2), out=[];
+      ["第1接触","第2接触","第3接触","第4接触"].forEach((lab,i)=>{
+        if(ct[i]===undefined)return;
+        if(sunAlt(ct[i],s2)<0){ out.push(`${lab}：太陽が地平線の下で観測できず`); return; }
+        const t=ct[i]+gauss(35/86400); out.push(`${lab} ${fmtDT(t)}`);
+        rec("日面通過（観測者）",`${tr2.y}年 ${n} ${lab} ${fmtDT(t)}`); });
+      modal(`${n} からの報告（${tr2.y}年）`,out.join("<br>")); };
+    box.appendChild(b); });
+  box.insertAdjacentHTML("beforeend",'<p class="note">通過の後、いつでも観測者の記録を受け取れる。</p>');
+}
+
+/* ============ 振り子 ============ */
+function drawClock(){
+  const {c,w,h}=cx2d("#cvClock"); const A=st.clockAnim;
+  const px=w*0.22, top=40, Lp=h*0.50;
+  c.fillStyle="#fbfaf7"; c.fillRect(0,0,w,h);
+  c.fillStyle="#e8dcc4"; c.strokeStyle="#a08d6a"; c.lineWidth=1.2;
+  c.beginPath(); c.rect(px-54,top-22,108,17); c.fill(); c.stroke();
+  const th=0.15*Math.cos(st.real*Math.PI*2);
+  const bx=px+Lp*Math.sin(th), by=top+Lp*Math.cos(th);
+  line(c,px,top,bx,by,"#8a7550",1.6);
+  c.fillStyle="#b8a271"; c.strokeStyle="#7c684a"; c.lineWidth=1.2;
+  c.beginPath(); c.arc(bx,by,15,0,TAU); c.fill(); c.stroke();
+  c.fillStyle="#d3c49e"; c.beginPath(); c.arc(bx,by,6,0,TAU); c.fill();
+  txt(c,"水銀補正振り子",px,by+34,"#8a7550",11.5,"center");
+  const gx=w*0.46, gy=54, gw=w-gx-36, gh=h-118;
+  c.strokeStyle="#dfe4e8"; c.lineWidth=1; c.strokeRect(gx,gy,gw,gh);
+  line(c,gx,gy+gh/2,gx+gw,gy+gh/2,"#dfe4e8",1);
+  txt(c,"恒星の南中に対する累積のずれ",gx,gy-13,"#6b7278",11.5);
+  txt(c,"0",gx-8,gy+gh/2,"#aab3ba",10,"right");
+  txt(c,"10日",gx+gw,gy+gh+14,"#aab3ba",10,"right");
+  if(A){ const full=clockRate(cur())*10, sc=gh/2/Math.max(60,Math.abs(full)*1.35);
+    c.strokeStyle="#1f5fa8"; c.lineWidth=2; c.beginPath();
+    const fr=clamp(A.t/A.dur,0,1);
+    for(let i=0;i<=120;i++){ const f=i/120*fr; const x=gx+gw*f, y=gy+gh/2-full*f*sc;
+      i?c.lineTo(x,y):c.moveTo(x,y); }
+    c.stroke();
+    txt(c,`${A.dayShown} 日目`,gx+gw,gy-13,"#1f5fa8",11.5,"right");
+  } else txt(c,"測定を始めると、ずれが積み上がっていく",gx+gw/2,gy+gh/2+22,"#aab3ba",12,"center");
+}
+
+/* ============ 熱量計 ============ */
+function drawCalo(){
+  const {c,w,h}=cx2d("#cvCalo"); const s=cur();
+  const day=Math.floor(st.jd-0.5)+0.5, J=day+(st.caloHour-s.lon/15)/24, q=sunAltAz(J,s);
+  c.fillStyle="#f6fafd"; c.fillRect(0,0,w,h*0.66);
+  c.fillStyle="#efeadf"; c.fillRect(0,h*0.66,w,h*0.34);
+  line(c,0,h*0.66,w,h*0.66,"#c6b99e",1.3);
+  const ax=w*0.60, ay=h*0.52;
+  if(q.alt>0){
+    const a=q.alt*D2R, L=Math.min(w*0.85,h*1.1);
+    const sx=ax-L*Math.cos(a), sy=ay-L*Math.sin(a);
+    const m=1/Math.sin(a), tr=Math.pow(TAU_ATM,m);
+    const nx=Math.sin(a), ny=-Math.cos(a), wd=17;
+    c.fillStyle=`rgba(245,200,110,${0.16+0.62*tr})`;
+    c.beginPath(); c.moveTo(sx+nx*wd,sy+ny*wd); c.lineTo(ax+nx*wd,ay+ny*wd);
+    c.lineTo(ax-nx*wd,ay-ny*wd); c.lineTo(sx-nx*wd,sy-ny*wd); c.closePath(); c.fill();
+    const gg=c.createRadialGradient(sx,sy,0,sx,sy,32);
+    gg.addColorStop(0,"rgba(240,190,90,.9)"); gg.addColorStop(1,"rgba(240,190,90,0)");
+    c.fillStyle=gg; c.beginPath(); c.arc(sx,sy,32,0,TAU); c.fill();
+    c.fillStyle="#d99b2c"; c.beginPath(); c.arc(sx,sy,12,0,TAU); c.fill();
+    txt(c,`通る大気の量 ${m.toFixed(2)} 倍`,sx,sy+46,"#8a7f6d",11.5,"center");
+  } else txt(c,"太陽は地平線の下にある",w*0.28,h*0.28,"#8a949c",13,"center");
+  const bw=120, bh=90, bx=ax-4, by=ay-16;
+  c.fillStyle="#2f3237"; c.strokeStyle="#1d2024"; c.lineWidth=1.4;
+  c.beginPath(); c.rect(bx,by,bw,bh); c.fill(); c.stroke();
+  c.fillStyle="#5b8fb5"; c.fillRect(bx+4,by+bh-4-(bh-8)*0.7,bw-8,(bh-8)*0.7);
+  txt(c,"水 0.200 kg",bx+bw/2,by+bh-18,"#dce8f0",11,"center");
+  line(c,ax-26,ay-16,ax-4,ay-16,"#1d2024",3.5);
+  txt(c,"開口 0.0200 m²",ax-30,ay-30,"#6b7278",11,"right");
+  const tx=bx+bw+28, ty=by-20, tl=bh+44;
+  c.strokeStyle="#8a949c"; c.lineWidth=1.2; c.fillStyle="#fff";
+  c.beginPath(); c.rect(tx,ty,13,tl); c.fill(); c.stroke();
+  c.beginPath(); c.arc(tx+6.5,ty+tl+9,10,0,TAU); c.fill(); c.stroke();
+  const A=st.caloAnim, frac=A?clamp(A.frac,0,1):0.12;
+  c.fillStyle="#c0453b"; c.fillRect(tx+3.5,ty+tl-tl*frac,6,tl*frac);
+  c.beginPath(); c.arc(tx+6.5,ty+tl+9,7.5,0,TAU); c.fill();
+  for(let i=0;i<=10;i++){ const yy=ty+tl-tl*i/10; line(c,tx+13,yy,tx+19,yy,"#c2cad0",1); }
+  txt(c,"温度計",tx+6,ty-13,"#6b7278",11,"center");
+  txt(c,`${fmtDT(J)}　${s.n}　太陽高度 ${q.alt.toFixed(1)}°`,14,16,"#6b7278",12);
+  if(A) txt(c,"測定中…",14,34,"#9c4b1e",12);
+}
+
+/* ============ 入力（望遠鏡の糸） ============ */
+(function(){ const cv=$("#cvTele");
+  const pos=e=>{ const r=cv.getBoundingClientRect(); const p=(e.touches&&e.touches[0])||e;
+    return {x:p.clientX-r.left, w:r.width}; };
+  const down=e=>{ if(st.teleMode!=="sun")return; e.preventDefault();
+    const {x,w}=pos(e), R=teleR(); let best=-1,bd=1e9;
+    st.wires.forEach((u,i)=>{ const d=Math.abs(x-(w/2+u*R)); if(d<bd){bd=d;best=i;} });
+    if(bd<28) st.drag=best; };
+  const move=e=>{ if(st.drag===null||st.drag<0)return; e.preventDefault();
+    const {x,w}=pos(e), R=teleR();
+    st.wires[st.drag]=clamp((x-w/2)/R,-0.97,0.97);
+    const a=teleReading(), m=Math.floor(a/60);
+    $("#teleRead").textContent=`${m}′ ${(a-60*m).toFixed(1)}″`; };
+  const up=()=>{ st.drag=null; };
+  cv.addEventListener("mousedown",down); cv.addEventListener("touchstart",down,{passive:false});
+  addEventListener("mousemove",move); addEventListener("touchmove",move,{passive:false});
+  addEventListener("mouseup",up); addEventListener("touchend",up);
+})();
+
+/* ============ 器具の操作 ============ */
+$("#qMeasure").onclick=()=>{ if(st.over||st.travel)return;
+  const s=cur(), Jn=noonJD(st.jd+0.5,s); advance(Math.max(0.05,Jn-st.jd));
+  const a=sunAlt(Jn,s)+gauss(10/3600);
+  $("#qRead").textContent=fmtAng(a); rec("象限儀",`${s.n} の太陽南中高度 ${fmtAng(a)}`); };
+function renderQAssist(){ const box=$("#qAssist"); box.innerHTML="";
+  if(!st.assistants.length){ box.innerHTML='<span class="note" style="margin:0">観測者がいない</span>'; return; }
+  st.assistants.forEach(n=>{ const b=document.createElement("button"); b.textContent=n;
+    b.onclick=()=>{ if(st.over)return;
+      const s=SITES[idx(n)], Jn=noonJD(st.jd+0.5,s); advance(Math.max(0.05,Jn-st.jd));
+      const a=sunAlt(Jn,s)+gauss(40/3600);
+      rec("象限儀（観測者）",`${n} の太陽南中高度 ${fmtAng(a)}`);
+      modal("観測者からの報告",`${n}：太陽の南中高度 ${fmtAng(a)}`); };
+    box.appendChild(b); }); }
+$("#teleSun").onclick=()=>{ st.teleMode="sun"; renderTeleUI(); };
+$("#teleVenus").onclick=()=>{ st.teleMode="venus"; renderTeleUI(); };
+$("#cMeasure").onclick=()=>{ if(st.over||st.clockAnim||st.travel)return;
+  st.clockAnim={t:0,dur:2.4,dayShown:0}; };
+$("#caloHour").oninput=e=>{ st.caloHour=parseFloat(e.target.value); };
+$("#caloMeasure").onclick=()=>{ if(st.over||st.caloAnim||st.travel)return;
+  const s=cur(), day=Math.floor(st.jd-0.5)+0.5, J=day+(st.caloHour-s.lon/15)/24;
+  const alt=sunAlt(J,s);
+  if(alt<=3){ $("#caloRead").textContent="太陽が低すぎる"; return; }
+  st.caloAnim={t:0,dur:2.0,frac:0.12,J,alt}; };
+
+/* ============ ループ ============ */
+function step(dt){
+  if(st.over||!st.ready) return;
+  st.real+=dt;
+  if(st.travel){ st.travel.p+=dt/1.3;
+    if(st.travel.p>=1){ st.site=st.travel.to; st.travel=null;
+      rec("移動",`${st.site} に到着した。`); renderMapUI(); } }
+  if(st.clockAnim){ const A=st.clockAnim; A.t+=dt; A.dayShown=Math.min(10,Math.ceil(A.t/A.dur*10));
+    if(A.t>=A.dur){ st.clockAnim=null; advance(10);
+      const v=clockRate(cur())+gauss(0.3);
+      $("#cRead").textContent=`${v>=0?"+":""}${v.toFixed(2)} 秒/日`;
+      rec("振り子時計",`${cur().n} の日差 ${v>=0?"+":""}${v.toFixed(2)} 秒/日`); } }
+  if(st.caloAnim){ const A=st.caloAnim; A.t+=dt; A.frac=0.12+0.72*(A.t/A.dur);
+    if(A.t>=A.dur){ const s=cur(), r=caloRate(A.J,s,A.alt)*(1+gauss(0.01));
+      st.caloAnim=null; advance(1/24);
+      $("#caloRead").textContent=`${(r*1000).toFixed(3)} mK/s`;
+      rec("熱量計",`${s.n} 太陽高度 ${A.alt.toFixed(2)}° 温度上昇率 ${(r*1000).toFixed(3)} mK/s`); } }
+  const rv=RATES.find(r=>r.k===st.rate).v, dy=rv*dt;
+  st.delay+=Math.max(0,dt-dy*60);
+  if(st.delay>=DELAY_MAX){ st.delay=DELAY_MAX; st.rate="yr"; }
+  advance(dy*365.2422);
+  if(st.jd>=T_END&&!st.over){ st.over=true;
+    modal("1850年","あなたの生涯は終わった。<br><br>"
+      +`残した記録 ${st.recs.length} 件。使った遅延 ${mmss(st.delay)}。<br><br>`
+      +"記録帳を閉じ、解答用紙に結果を書き記せ。"); }
+}
+function draw(){
+  if(!st.ready) return;
+  $("#cal").textContent=fmtDate(st.jd);
+  $("#site").textContent=st.travel?("→ "+st.travel.to):st.site;
+  document.querySelectorAll("#rates button").forEach(b=>{
+    b.classList.toggle("on",b.dataset.k===st.rate);
+    b.disabled=st.delay>=DELAY_MAX&&b.dataset.k!=="yr"; });
+  drawTL();
+  switch(st.panel){
+    case "map": drawMap(); break;
+    case "quad": drawSky(); break;
+    case "tele": drawTele(); break;
+    case "transit": drawTransit(); renderTransitUI(); break;
+    case "clock": drawClock(); break;
+    case "tool": drawFit(); break;
+    case "calo": drawCalo();
+      { const s=cur(), day=Math.floor(st.jd-0.5)+0.5, J=day+(st.caloHour-s.lon/15)/24;
+        $("#caloHourTxt").textContent=`${st.caloHour.toFixed(2)} 時　太陽高度 ${sunAlt(J,s).toFixed(1)}°`; }
+      break;
+  }
+}
+function tick(now){ const dt=Math.min(0.1,(now-st.last)/1000||0); st.last=now;
+  if(Object.keys(_sp).length>6000) _sp={};
+  step(dt); draw(); requestAnimationFrame(tick); }
+
+
+/* ============ 電卓（eval を使わない再帰下降パーサ） ============ */
+function evalExpr(src){
+  const t=src.replace(/\s+/g,""); let i=0;
+  const peek=()=>t[i];
+  function expr(){ let v=term();
+    while(peek()==="+"||peek()==="-"){ const o=t[i++], r=term(); v=(o==="+")?v+r:v-r; } return v; }
+  function term(){ let v=unary();
+    while(peek()==="*"||peek()==="/"){ const o=t[i++], r=unary(); v=(o==="*")?v*r:v/r; } return v; }
+  function unary(){ if(peek()==="-"){i++;return -unary();} if(peek()==="+"){i++;return unary();} return power(); }
+  function power(){ const b=atom(); if(peek()==="^"){ i++; return Math.pow(b,unary()); } return b; }
+  function atom(){
+    if(peek()==="("){ i++; const v=expr(); if(peek()===")")i++; else throw 0; return v; }
+    const n=/^[0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?/.exec(t.slice(i));
+    if(n){ i+=n[0].length; return parseFloat(n[0]); }
+    const w=/^[a-zA-Z]+/.exec(t.slice(i));
+    if(w){ const nm=w[0]; i+=nm.length;
+      if(nm==="pi")return Math.PI;
+      if(nm==="e")return Math.E;
+      const F={sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,
+               atan:Math.atan,ln:Math.log,log:Math.log10,sqrt:Math.sqrt,exp:Math.exp,abs:Math.abs};
+      if(!F[nm]) throw 0;
+      let a; if(peek()==="("){ i++; a=expr(); if(peek()===")")i++; else throw 0; } else a=atom();
+      return F[nm](a); }
+    throw 0;
+  }
+  const v=expr(); if(i<t.length) throw 0; return v;
+}
+function fmtNum(v){
+  if(!isFinite(v)) return String(v);
+  if(v===0) return "0";
+  const a=Math.abs(v);
+  return (a>=1e5||a<1e-3)? v.toExponential(6) : v.toPrecision(8).replace(/\.?0+$/,"");
+}
+function runCalc(){
+  const s=$("#calcIn").value.trim(); if(!s) return;
+  let out;
+  try{ out=fmtNum(evalExpr(s)); }catch(e){ out="式が読めない"; }
+  $("#calcOut").textContent=out;
+  if(out!=="式が読めない"){ st.calcHist.unshift(s+" = "+out); st.calcHist=st.calcHist.slice(0,8);
+    $("#calcHist").innerHTML='<p class="note" style="font-variant-numeric:tabular-nums">'
+      +st.calcHist.map(x=>x.replace(/</g,"&lt;")).join("<br>")+'</p>'; }
+}
+
+/* ============ 線形解析 ============ */
+let fitData=null;
+function parseFit(txt){
+  const pts=[];
+  txt.split(/[\r\n;]+/).forEach(L=>{
+    const p=L.trim(); if(!p) return;
+    const m=p.split(/[\s,\t]+/).filter(x=>x.length);
+    if(m.length<2) return;
+    const x=parseFloat(m[0]), y=parseFloat(m[1]);
+    if(isFinite(x)&&isFinite(y)) pts.push([x,y]);
+  });
+  return pts;
+}
+function runFit(){
+  const pts=parseFit($("#fitIn").value); st.fitText=$("#fitIn").value;
+  if(pts.length<3){ $("#fitOut").innerHTML='<p class="warnbox">3 組以上のデータが要る。</p>'; fitData=null; return; }
+  const n=pts.length;
+  let sx=0,sy=0; pts.forEach(p=>{sx+=p[0];sy+=p[1];});
+  const mx=sx/n, my=sy/n;
+  let Sxx=0,Sxy=0,Syy=0;
+  pts.forEach(p=>{ const dx=p[0]-mx, dy=p[1]-my; Sxx+=dx*dx; Sxy+=dx*dy; Syy+=dy*dy; });
+  if(Sxx<=0){ $("#fitOut").innerHTML='<p class="warnbox">x がすべて同じ値である。</p>'; fitData=null; return; }
+  const a=Sxy/Sxx, b=my-a*mx;
+  let SSE=0; pts.forEach(p=>{ const r=p[1]-(a*p[0]+b); SSE+=r*r; });
+  const s=Math.sqrt(SSE/(n-2));
+  const sa=s/Math.sqrt(Sxx), sb=s*Math.sqrt(1/n+mx*mx/Sxx);
+  const r2=Syy>0?1-SSE/Syy:1;
+  fitData={pts,a,b};
+  $("#fitOut").innerHTML=
+   `<table style="margin-top:9px"><tr><th>点の数</th><td class="n">${n}</td></tr>`
+  +`<tr><th>傾き a</th><td class="n">${fmtNum(a)} &plusmn; ${fmtNum(sa)}</td></tr>`
+  +`<tr><th>切片 b</th><td class="n">${fmtNum(b)} &plusmn; ${fmtNum(sb)}</td></tr>`
+  +`<tr><th>残差の標準偏差</th><td class="n">${fmtNum(s)}</td></tr>`
+  +`<tr><th>r<sup>2</sup></th><td class="n">${r2.toFixed(5)}</td></tr></table>`
+  +`<p class="note">y = a x + b。誤差は最小二乗法の標準誤差（自由度 n&minus;2）。</p>`;
+}
+function drawFit(){
+  const {c,w,h}=cx2d("#cvFit");
+  c.fillStyle="#fff"; c.fillRect(0,0,w,h);
+  if(!fitData){ txt(c,"データを入れて「あてはめる」を押す",w/2,h/2,"#aab3ba",12,"center"); return; }
+  const P=fitData.pts;
+  let x0=Math.min(...P.map(p=>p[0])), x1=Math.max(...P.map(p=>p[0]));
+  let y0=Math.min(...P.map(p=>p[1])), y1=Math.max(...P.map(p=>p[1]));
+  const px=(x1-x0)||1, py=(y1-y0)||1;
+  x0-=px*0.08; x1+=px*0.08; y0-=py*0.12; y1+=py*0.12;
+  const L=52,R=w-16,T=16,B=h-28;
+  const X=v=>L+(v-x0)/(x1-x0)*(R-L), Y=v=>B-(v-y0)/(y1-y0)*(B-T);
+  c.strokeStyle="#eceff1"; c.lineWidth=1;
+  for(let i=0;i<=4;i++){ const yy=T+(B-T)*i/4; c.beginPath(); c.moveTo(L,yy); c.lineTo(R,yy); c.stroke();
+    txt(c,fmtNum(y1-(y1-y0)*i/4).slice(0,8),L-6,yy,"#aab3ba",9.5,"right"); }
+  for(let i=0;i<=4;i++){ const xx=L+(R-L)*i/4;
+    txt(c,fmtNum(x0+(x1-x0)*i/4).slice(0,8),xx,B+12,"#aab3ba",9.5,"center"); }
+  c.strokeStyle="#c9d1d7"; c.lineWidth=1; c.strokeRect(L,T,R-L,B-T);
+  c.strokeStyle="#1f5fa8"; c.lineWidth=1.6; c.beginPath();
+  c.moveTo(X(x0),Y(fitData.a*x0+fitData.b)); c.lineTo(X(x1),Y(fitData.a*x1+fitData.b)); c.stroke();
+  c.fillStyle="#c0453b";
+  P.forEach(p=>{ c.beginPath(); c.arc(X(p[0]),Y(p[1]),3.4,0,TAU); c.fill(); });
+}
+
+/* ============ 保存と復帰 ============ */
+const SKEY=()=>"nichirin:"+st.player;
+function saveState(){
+  if(!st.player) return;
+  try{ localStorage.setItem(SKEY(),JSON.stringify({
+    v:3, jd:st.jd, rate:st.rate, delay:st.delay, real:st.real, site:st.site,
+    assistants:st.assistants, recs:st.recs, news:st.news, seen:st.seen, over:st.over,
+    caloHour:st.caloHour, wires:st.wires, fitText:st.fitText, calcHist:st.calcHist
+  })); }catch(e){}
+}
+function loadState(name){
+  try{ const raw=localStorage.getItem("nichirin:"+name); return raw?JSON.parse(raw):null; }
+  catch(e){ return null; }
+}
+function applyState(d){
+  st.jd=d.jd; st.rate=d.rate; st.delay=d.delay; st.real=d.real; st.site=d.site;
+  st.assistants=d.assistants||[]; st.recs=d.recs||[]; st.news=d.news||[]; st.seen=d.seen||{};
+  st.over=!!d.over; st.caloHour=d.caloHour||12; st.wires=d.wires||[-0.34,0.34];
+  st.fitText=d.fitText||""; st.calcHist=d.calcHist||[];
+}
+function startGame(name){
+  st.player=name; st.ready=true;
+  $("#who").textContent=name;
+  $("#gate").remove();
+  $("#fitIn").value=st.fitText;
+  if(st.calcHist.length) $("#calcHist").innerHTML='<p class="note" style="font-variant-numeric:tabular-nums">'
+    +st.calcHist.map(x=>x.replace(/</g,"&lt;")).join("<br>")+'</p>';
+  renderNews(); renderRecs(); renderMapUI(); renderQAssist(); renderTeleUI(); renderTransitAssist();
+  if(st.over) modal("すでに終えている","この名の生涯はすでに 1850 年に達している。記録帳は読めるが、観測はできない。");
+  else checkNews();
+  setInterval(saveState,4000);
+  addEventListener("beforeunload",saveState);
+  document.addEventListener("visibilitychange",()=>{ if(document.hidden) saveState(); });
+}
+
+/* ============ 初期化 ============ */
+RATES.forEach(r=>{ const b=document.createElement("button"); b.textContent=r.lab; b.dataset.k=r.k;
+  b.onclick=()=>{ if(st.delay>=DELAY_MAX&&r.k!=="yr")return; st.rate=r.k; };
+  $("#rates").appendChild(b); });
+document.querySelectorAll(".nav").forEach(b=>{ b.onclick=()=>{
+  document.querySelectorAll(".nav").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active"); st.panel=b.dataset.p; $("#p-"+st.panel).classList.add("active");
+  if(st.panel==="map") renderMapUI();
+  if(st.panel==="quad") renderQAssist();
+  if(st.panel==="tele") renderTeleUI();
+  if(st.panel==="transit") renderTransitAssist();
+  draw(); }; });
+
+$("#calcGo").onclick=runCalc;
+$("#calcIn").addEventListener("keydown",e=>{ if(e.key==="Enter") runCalc(); });
+$("#fitGo").onclick=runFit;
+$("#fitClear").onclick=()=>{ $("#fitIn").value=""; st.fitText=""; fitData=null; $("#fitOut").innerHTML=""; };
+$("#fitIn").addEventListener("input",()=>{ st.fitText=$("#fitIn").value; });
+
+$("#gateGo").onclick=()=>{
+  const nm=$("#gateName").value.trim();
+  if(nm.length<1){ $("#gateMsg").textContent="名を記すこと。"; return; }
+  if(nm.length>24){ $("#gateMsg").textContent="名が長すぎる。"; return; }
+  const d=loadState(nm);
+  if(d) applyState(d);
+  startGame(nm);
+};
+$("#gateName").addEventListener("keydown",e=>{ if(e.key==="Enter") $("#gateGo").click(); });
+setTimeout(()=>{ try{$("#gateName").focus();}catch(e){} },100);
+
+requestAnimationFrame(t=>{st.last=t;tick(t);});
+</script>
+</body>
+</html>
